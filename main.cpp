@@ -1,3 +1,11 @@
+/**
+ * CG2271 Lab 6
+ * AY2016-17 Semester 2
+ * Students:
+ * 1. PANKAJ BHOOTRA (A0144919W)
+ * 2. CHAN JUN XUN (A0139313L)
+ */
+
 #include <Arduino.h>
 #include <avr/io.h>
 #include <FreeRTOS.h>
