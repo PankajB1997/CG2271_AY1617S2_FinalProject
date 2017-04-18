@@ -29,6 +29,7 @@ QueueHandle_t csQueue = NULL;
 static unsigned long previousInterruptTime1 = 0;
 static unsigned long previousInterruptTime2 = 0;
 
+/* Plays the buzzer whose volume is proportional to the speed of the car */
 void playBuzzer(int soundLevel) {
 	if (soundLevel == 1) {
 		analogWrite(SPEAKER, 4);
@@ -41,6 +42,7 @@ void playBuzzer(int soundLevel) {
 	}
 }
 
+/* Lights up the 3 yellow LEDs; the number of yellow LEDs lit up is the current speed of the car */
 void lightLEDs(int soundLevel) {
 	if (soundLevel == 1) {
 		digitalWrite(YELLOW_LED_1, HIGH);
@@ -61,6 +63,7 @@ void lightLEDs(int soundLevel) {
 	}
 }
 
+/* fetches the maximum safe speed for a given value of distance */
 int getSafeSpeed(int distance) {
 	if (distance <= D)
 		return 0;
@@ -72,7 +75,9 @@ int getSafeSpeed(int distance) {
 		return 3;
 }
 
-void increaseSpeed(int safeSpeed, int automatedSafetyFeature, int *driverDesiredSpeed, int *currentSoundLevelAndSpeed) {
+/* increases speed by 1 unit and also resets the speed to safe speed value if automated safety is ON */
+void increaseSpeed(int safeSpeed, int automatedSafetyFeature,
+		int *driverDesiredSpeed, int *currentSoundLevelAndSpeed) {
 
 	if (*currentSoundLevelAndSpeed < 3 && !automatedSafetyFeature) {
 		*currentSoundLevelAndSpeed = *currentSoundLevelAndSpeed + 1;
@@ -86,6 +91,7 @@ void increaseSpeed(int safeSpeed, int automatedSafetyFeature, int *driverDesired
 	lightLEDs(*currentSoundLevelAndSpeed);
 }
 
+/* decreases speed by 1 unit */
 void decreaseSpeed(int *driverDesiredSpeed, int *currentSoundLevelAndSpeed) {
 	if (*currentSoundLevelAndSpeed > 0) {
 		*currentSoundLevelAndSpeed = *currentSoundLevelAndSpeed - 1;
@@ -97,6 +103,7 @@ void decreaseSpeed(int *driverDesiredSpeed, int *currentSoundLevelAndSpeed) {
 	}
 }
 
+/* this task reads in the distance value periodically every 500 ms, also resets the speed to safe speed if the current speed is more than the maximum safe speed for this distance */
 void readDistanceTask(void *p) {
 	TickType_t xLastWakeTime = 0;
 	const TickType_t xFrequency = 500;
@@ -108,15 +115,14 @@ void readDistanceTask(void *p) {
 		xQueuePeek(csQueue, (void * ) &currentSpeed, (TickType_t ) 0);
 		if (currentSpeed > getSafeSpeed(distance)) {
 			digitalWrite(RED_LED, HIGH);
-			increaseSpeed(getSafeSpeed(distance), 1, &desiredSpeed, &currentSpeed);
-			xQueueOverwrite(currentSpeedQueue,
-					(void * ) &currentSpeed);
+			increaseSpeed(getSafeSpeed(distance), 1, &desiredSpeed,
+					&currentSpeed);
+			xQueueOverwrite(currentSpeedQueue, (void * ) &currentSpeed);
 			xQueueOverwrite(csQueue, (void * ) &currentSpeed);
 		}
 		if (getSafeSpeed(distance) >= currentSpeed) {
 			desiredSpeed = currentSpeed;
-			xQueueOverwrite(driverDesiredSpeedQueue,
-					(void * ) &desiredSpeed);
+			xQueueOverwrite(driverDesiredSpeedQueue, (void * ) &desiredSpeed);
 			xQueueOverwrite(ddsQueue, (void * ) &desiredSpeed);
 		}
 		xQueueOverwrite(distanceQueue, (void * ) &distance);
@@ -124,6 +130,7 @@ void readDistanceTask(void *p) {
 	}
 }
 
+/* this task periodically runs every 1000 ms; increases/decreases speed if the relevant pushbutton was pressed, also resets the speed to safe speed if current speed is being increased beyond the safe speed for current distance */
 void checkSpeedTask(void *p) {
 	TickType_t xLastWakeTime = 0;
 	const TickType_t xFrequency = 1000;
@@ -139,22 +146,22 @@ void checkSpeedTask(void *p) {
 			} else if (flag == 770) {
 				decreaseSpeed(&desiredSpeed, &currentSpeed);
 			}
-			if (flag == 512
-					&& (currentSpeed > getSafeSpeed(distance))) {
+			if (flag == 512 && (currentSpeed > getSafeSpeed(distance))) {
 				digitalWrite(RED_LED, HIGH);
-				increaseSpeed(getSafeSpeed(distance), 1, &desiredSpeed, &currentSpeed);
+				increaseSpeed(getSafeSpeed(distance), 1, &desiredSpeed,
+						&currentSpeed);
 			}
-			xQueueOverwrite(currentSpeedQueue,
-					(void * ) &currentSpeed);
+			xQueueOverwrite(currentSpeedQueue, (void * ) &currentSpeed);
 			xQueueOverwrite(csQueue, (void * ) &currentSpeed);
-			xQueueOverwrite(driverDesiredSpeedQueue,
-					(void * ) &desiredSpeed);
+			xQueueOverwrite(driverDesiredSpeedQueue, (void * ) &desiredSpeed);
 			xQueueOverwrite(ddsQueue, (void * ) &desiredSpeed);
 		}
 		vTaskDelayUntil(&xLastWakeTime, xFrequency);
 		digitalWrite(RED_LED, LOW);
 	}
 }
+
+/* this task periodically prints the distance, driver desired speed and current speed every 500 ms */
 void printTask(void *p) {
 	TickType_t xLastWakeTime = 0;
 	const TickType_t xFrequency = 500;
@@ -174,6 +181,7 @@ void printTask(void *p) {
 	}
 }
 
+/* Interrupt handler for increase speed pushbutton */
 void btn1ISR() {
 	static signed char xHigherPriorityTaskWoken;
 	xHigherPriorityTaskWoken = pdFALSE;
@@ -189,6 +197,7 @@ void btn1ISR() {
 	}
 }
 
+/* Interrupt handler for decrease speed pushbutton */
 void btn2ISR() {
 	static signed char xHigherPriorityTaskWoken;
 	xHigherPriorityTaskWoken = pdFALSE;
