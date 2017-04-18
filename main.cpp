@@ -149,12 +149,12 @@ void checkSpeedTask(void *p) {
 			xQueuePeek(ddsQueue, (void * ) &desiredSpeed, (TickType_t ) 0);
 			xQueuePeek(csQueue, (void * ) &currentSpeed, (TickType_t ) 0);
 			xQueueReceive(distQueue, (void * ) &distance, (TickType_t ) 0);
-			if (flag == 512) {
+			if (flag == 1) {
 				increaseSpeed(-1, 0, &desiredSpeed, &currentSpeed);
-			} else if (flag == 770) {
+			} else if (flag == 2) {
 				decreaseSpeed(&desiredSpeed, &currentSpeed);
 			}
-			if (flag == 512 && (currentSpeed > getSafeSpeed(distance))) {
+			if (flag == 1 && (currentSpeed > getSafeSpeed(distance))) {
 				digitalWrite(RED_LED, HIGH);
 				increaseSpeed(getSafeSpeed(distance), 1, &desiredSpeed,
 						&currentSpeed);
