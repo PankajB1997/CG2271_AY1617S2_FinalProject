@@ -24,8 +24,9 @@ QueueHandle_t driverDesiredSpeedQueue = NULL;
 QueueHandle_t currentSpeedQueue = NULL;
 QueueHandle_t checkSpeedQueue = NULL;
 QueueHandle_t distQueue = NULL;
+QueueHandle_t ddsQueue = NULL;
 
-int currentSoundLevelAndSpeed = 0, driverDesiredSpeed = 0;
+int currentSoundLevelAndSpeed = 0;
 
 static unsigned long previousInterruptTime1 = 0;
 static unsigned long previousInterruptTime2 = 0;
@@ -73,13 +74,13 @@ int getSafeSpeed(int distance) {
 		return 3;
 }
 
-void increaseSpeed(int safeSpeed, int automatedSafetyFeature) {
+void increaseSpeed(int safeSpeed, int automatedSafetyFeature, int *driverDesiredSpeed) {
 
 	if (currentSoundLevelAndSpeed < 3 && !automatedSafetyFeature) {
 		currentSoundLevelAndSpeed = currentSoundLevelAndSpeed + 1;
-		driverDesiredSpeed = driverDesiredSpeed + 1;
-		if (driverDesiredSpeed > 3)
-			driverDesiredSpeed = 3;
+		*driverDesiredSpeed = *driverDesiredSpeed + 1;
+		if (*driverDesiredSpeed > 3)
+			*driverDesiredSpeed = 3;
 	}
 	if (automatedSafetyFeature)
 		currentSoundLevelAndSpeed = safeSpeed;
@@ -87,12 +88,12 @@ void increaseSpeed(int safeSpeed, int automatedSafetyFeature) {
 	lightLEDs(currentSoundLevelAndSpeed);
 }
 
-void decreaseSpeed() {
+void decreaseSpeed(int *driverDesiredSpeed) {
 	if (currentSoundLevelAndSpeed > 0) {
 		currentSoundLevelAndSpeed = currentSoundLevelAndSpeed - 1;
-		driverDesiredSpeed = driverDesiredSpeed - 1;
-		if (driverDesiredSpeed < 0)
-			driverDesiredSpeed = 0;
+		*driverDesiredSpeed = *driverDesiredSpeed - 1;
+		if (*driverDesiredSpeed < 0)
+			*driverDesiredSpeed = 0;
 		playBuzzer(currentSoundLevelAndSpeed);
 		lightLEDs(currentSoundLevelAndSpeed);
 	}
@@ -101,20 +102,22 @@ void decreaseSpeed() {
 void readDistanceTask(void *p) {
 	TickType_t xLastWakeTime = 0;
 	const TickType_t xFrequency = 500;
-	int distance;
+	int distance, desiredSpeed = 0;
 	for (;;) {
 		distance = analogRead(PIN_PTTM);
 		xQueueOverwrite(distQueue, (void * ) &distance);
+		xQueuePeek(ddsQueue, (void * ) &desiredSpeed, (TickType_t ) 0);
 		if (currentSoundLevelAndSpeed > getSafeSpeed(distance)) {
 			digitalWrite(RED_LED, HIGH);
-			increaseSpeed(getSafeSpeed(distance), 1);
+			increaseSpeed(getSafeSpeed(distance), 1, &desiredSpeed);
 			xQueueOverwrite(currentSpeedQueue,
 					(void * ) &currentSoundLevelAndSpeed);
 		}
 		if (getSafeSpeed(distance) >= currentSoundLevelAndSpeed) {
-			driverDesiredSpeed = currentSoundLevelAndSpeed;
+			desiredSpeed = currentSoundLevelAndSpeed;
 			xQueueOverwrite(driverDesiredSpeedQueue,
-					(void * ) &driverDesiredSpeed);
+					(void * ) &desiredSpeed);
+			xQueueOverwrite(ddsQueue, (void * ) &desiredSpeed);
 		}
 		xQueueOverwrite(distanceQueue, (void * ) &distance);
 		vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -124,25 +127,27 @@ void readDistanceTask(void *p) {
 void checkSpeedTask(void *p) {
 	TickType_t xLastWakeTime = 0;
 	const TickType_t xFrequency = 1000;
-	int flag, distance;
+	int flag, distance, desiredSpeed = 0;
 	for (;;) {
 		if ( xQueueReceive(checkSpeedQueue, (void * ) &flag,
 				(TickType_t ) 0) == pdTRUE) {
+			xQueuePeek(ddsQueue, (void * ) &desiredSpeed, (TickType_t ) 0);
 			xQueueReceive(distQueue, (void * ) &distance, (TickType_t ) 0);
 			if (flag == 512) {
-				increaseSpeed(-1, 0);
+				increaseSpeed(-1, 0, &desiredSpeed);
 			} else if (flag == 770) {
-				decreaseSpeed();
+				decreaseSpeed(&desiredSpeed);
 			}
 			if (flag == 512
 					&& (currentSoundLevelAndSpeed > getSafeSpeed(distance))) {
 				digitalWrite(RED_LED, HIGH);
-				increaseSpeed(getSafeSpeed(distance), 1);
+				increaseSpeed(getSafeSpeed(distance), 1, &desiredSpeed);
 			}
 			xQueueOverwrite(currentSpeedQueue,
 					(void * ) &currentSoundLevelAndSpeed);
 			xQueueOverwrite(driverDesiredSpeedQueue,
-					(void * ) &driverDesiredSpeed);
+					(void * ) &desiredSpeed);
+			xQueueOverwrite(ddsQueue, (void * ) &desiredSpeed);
 		}
 		vTaskDelayUntil(&xLastWakeTime, xFrequency);
 		digitalWrite(RED_LED, LOW);
@@ -215,6 +220,7 @@ void setup() {
 	currentSpeedQueue = xQueueCreate(QUEUE_SIZE, sizeof(int));
 	checkSpeedQueue = xQueueCreate(1, sizeof(int));
 	distQueue = xQueueCreate(QUEUE_SIZE, sizeof(int));
+	ddsQueue = xQueueCreate(QUEUE_SIZE, sizeof(int));
 
 	playBuzzer(currentSoundLevelAndSpeed);
 	lightLEDs(currentSoundLevelAndSpeed);
