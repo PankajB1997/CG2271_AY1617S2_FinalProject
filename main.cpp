@@ -196,7 +196,7 @@ void btn1ISR() {
 	unsigned long currentTime;
 	currentTime = millis();
 	if (currentTime - previousInterruptTime1 >= 250) {
-		xQueueOverwrite(checkSpeedQueue, (void * ) 1);
+		xQueueOverwriteFromISR(checkSpeedQueue, (void * ) 1, &xHigherPriorityTaskWoken);
 		previousInterruptTime1 = currentTime;
 	}
 
@@ -212,7 +212,7 @@ void btn2ISR() {
 	unsigned long currentTime;
 	currentTime = millis();
 	if (currentTime - previousInterruptTime2 >= 250) {
-		xQueueOverwrite(checkSpeedQueue, (void * ) 2);
+		xQueueOverwriteFromISR(checkSpeedQueue, (void * ) 2, &xHigherPriorityTaskWoken);
 		previousInterruptTime2 = currentTime;
 	}
 
