@@ -1,0 +1,7 @@
+Feedback given by Teaching Assistant:-
+
+Score: 67/70
+Great work. Can simplify your code and implementation for improving performance and future maintenance. 
+-1 in UART: Return value of queue not checked in printTask. 
+-1 in overall implementation: Some queues could be avoided by passing structures. 
+-1 in overall implementation: Task readDistance should be be setting the speed if you have another task called checkSpeed (misleading).
